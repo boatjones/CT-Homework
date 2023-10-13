@@ -140,7 +140,6 @@ values (
 	'2023-09-19',
 	459.30);
 
-
 create or replace procedure insert_data() 
 language plpgsql
 as $$
