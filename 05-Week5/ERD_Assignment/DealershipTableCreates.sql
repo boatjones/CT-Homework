@@ -45,7 +45,7 @@ create table if not exists car_model(
 );
 
 create table if not exists car(
-	vin  varchar(15)  not null primary key,
+	vin  varchar(17)  not null primary key,
 	make_id   integer  not null,
 	model_id  integer  not null,
 	year  integer  not null,
@@ -56,7 +56,7 @@ create table if not exists car(
 
 create table if not exists sales_invoice(
 	sale_inv_id	 serial not null  primary key,
-	vin   varchar(15) not null,
+	vin   varchar(17) not null,
 	cust_id  integer  not null,
 	sale_date  date  not null,
 	sale_amount  numeric(8,2) not null,
@@ -68,7 +68,7 @@ create table if not exists sales_invoice(
 
 create table if not exists service_invoice(
 	svc_inv_id   serial  not null primary key,
-	vin   varchar(15) not null,
+	vin   varchar(17) not null,
 	cust_id   integer  not null,
 	svc_date   date  not null,
 	svc_amount  numeric(6,2),
