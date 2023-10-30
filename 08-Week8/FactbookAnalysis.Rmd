@@ -1,0 +1,234 @@
+---
+title: "CIA World Factbook Analysis"
+output: html_notebook
+---
+
+# Capstone I: R and Excel Project Analyzing Country Data
+
+### Pre-Import Work With Data In Excel
+
+The data sourced came from an extract from the [CIA World Factbook](https://perso.telecom-paristech.fr/eagan/class/igr204/data/factbook.csv) of various geographic, demographic, and economic factors of all the countries in the world. It was imported into Excel (actually LibreOffice Calc that has great text import/export features) and reviewed. Since the data was all of the world's countries, some marginal (for the purpose of these studies) countries could be excluded. The first exclusion was all countries lacking a current account balance. This excluded 114 countries such as Tulalu, Greenland, Mongolia, Afghanistan, North Korea, etc.
+
+The next exclusion was all countries lacking an industrial growth rate percent. This excluded 15 more countries such as Libya, Haiti, Burma, Iraq, Lebanon, etc.
+
+The next exclusion was all countries lacking investment as a percent of GDP. This excluded the 3 countries of Laos, Uzbekistan, and Bosnia Herzegovina.
+
+Next, the columns that were to be part of the study were reviewed for completeness. A quick eyeball and <Ctrl><Down> in each column proved these columns to be mostly complete and the only one (Railways km) had nulls where the particular countries were too small and/or undeveloped to have rail infrastructure and zero was easily assumed.
+
+With that done, the completed CSV was saved for work.
+
+### Imports
+
+```{r}
+library(tidyverse)
+library(dplyr)
+```
+
+```{r}
+fact_df <- read_csv('data/factbook.csv')
+fact_df
+```
+
+Items to address:
+
+-   column names
+
+-   address any null values in important columns - ignore or drop non-important columns
+
+## Hypotheses to Test:
+
+### Hypothesis #1: Transport Infrastructure to GDP
+
+Approach: combine railways & highways in km to a summed field for total transport length. Use this total field and divide it by the area in sq km of the country to get a "transport_density" field for the country.\
+
+$Ho:$ Transport density is independent from the GDP per capita
+
+$Ha:$ Transport density is correlated with GDP per capita at a statistically significant level
+
+A similar study may be done against GDP growth rate %. The GDP per capita may be more important here.
+
+Needed Columns: Country, Area, GDP, GDP - per capita, GDP - real growth rate %, Highways, Railways
+
+### Hypothesis #2: Internet Users to GDP
+
+Approach: Determine if there is a significant relationship between internet users and GDP per capita and internet users and GDP growth rate %. An "internet penetration_percent" column needs to be computed by dividing internet users by the overall population and multiplied by 100. The growth rate may be more important here.
+
+$Ho:$ Internet penetration percent has no relationship to GDP growth rate.
+
+$Ha:$ Internet penetration percent is a meaningful driver of GDP growth.
+
+Needed Columns: Country, Area, GDP, GDP - per capita, GDP - real growth rate %, Internet users, Population
+
+All other columns can be dropped or ignored.
+
+```{r}
+# first pass on column renaming
+new_column_names <- names(fact_df) %>%
+  tolower() %>%
+  gsub(" ", "_", .) %>%
+  gsub("-", "_", .) %>%
+  gsub("\\(", "_", .) %>%
+  gsub("\\)", "", .)
+
+fact_df <- fact_df %>% rename_at(vars(names(fact_df)), ~new_column_names)
+```
+
+```{r}
+# peek at progress
+names(fact_df)
+```
+
+```{r}
+# final pass at column renaming
+new_column_names <- names(fact_df) %>%
+  gsub("___", "_", .) %>%  # fix triple underlines
+  gsub("__", "_", .) %>%   # fix double underlines
+  gsub("\\%", "pct", .) %>% # replace percent sign with abbrev
+  gsub("\\/", "_per_", .) %>%  # replace slash with abbrev
+  gsub("\\&", "and", .) %>% # replace ampersand with and
+  gsub("1000", "1k", .) # replace 1000 with abbrev
+
+fact_df <- fact_df %>% rename_at(vars(names(fact_df)), ~new_column_names)
+```
+
+```{r}
+# completed column names
+names(fact_df)
+```
+
+```{r}
+# distill down to the needed values in the two studies
+study_df <- select(fact_df,
+                   country, 
+                   area_sq_km, 
+                   gdp, gdp_per_capita, 
+                   gdp_real_growth_rate_pct, 
+                   highways_km,
+                   railways_km,
+                   internet_hosts,
+                   internet_users,
+                   population)
+
+# check null values
+colSums(is.na(study_df))
+```
+
+```{r}
+# all countries with null rail data are small and/or undeveloped and truly lack a rail infrastructure
+no_rail <- subset(study_df, is.na(railways_km))
+no_rail
+```
+
+```{r}
+# fill nulls with zeroes
+study_df$railways_km[is.na(study_df$railways_km)] <- 0
+```
+
+```{r}
+# verify null values are removed
+colSums(is.na(study_df))
+```
+
+```{r}
+# compute values needed for studies and add them to the same dataframe
+study_df <- transform(study_df,
+                      tot_transport_length = highways_km + railways_km,
+                      transport_density = (highways_km + railways_km) / area_sq_km,
+                      internet_penetration_pct = (internet_users / population) * 100)
+```
+
+```{r}
+# put into a window for reference, the final dataframe for the studies
+view(study_df)
+```
+
+### Study #1: Transport Infrastructure to GDP Per Capita
+
+$Ho:$ Transport density is independent from the GDP per capita
+
+$Ha:$ Transport density is correlated with GDP per capita at a statistically significant level
+
+```{r}
+ggplot(data=study_df, aes(x=transport_density, y=gdp_per_capita, color = gdp_real_growth_rate_pct)) +
+  geom_point(alpha = 0.5) +
+  labs(title = 'Distribution of GDP Per Capita to Transport Density', 
+       x = 'Transport Density', y= 'GDP per Capita in USD x1000') +
+  scale_color_gradient(name='GDP Growth Percent', low='red', high='blue') +
+  scale_y_continuous(labels = function(x) x / 1000, breaks = scales::pretty_breaks(n = 5)) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+cor(study_df$transport_density, study_df$gdp_per_capita)
+```
+
+```{r}
+model <- lm(study_df$transport_density ~ study_df$gdp_per_capita)
+model
+```
+
+```{r}
+summary(model)
+```
+
+#### Conclusions to Study 1:
+
+The p-value represents the probability of seeing this result if the null hypothesis is true. The p-value here is basically zero. Consequently, since the p-class is below the significance level of 0.05, there's strong evidence against $Ho$. The R-squared value is 0.27. This indicates that about 27% of the variability in GDP per Capita is explained by Transport Density. The F-statistic is 47.7 which is significant.
+
+Because of these values, there is sufficient evidence to reject the null hypothesis and the findings support the idea that GDP per capita is related to Transport Density. The correlation coefficient of 0.52 shows a moderate positive linear relationship.
+
+### Study #2: Internet Users to GDP
+
+$Ho:$ Internet penetration percent has no relationship to GDP growth rate.
+
+$Ha:$ Internet penetration percent is a meaningful driver of GDP growth rate.
+
+```{r}
+# a quick eyeball shows that this relationship does not exist and no need to go further
+# BUT, let's look at other GDP factors.
+ggplot(data = study_df, aes(x=internet_penetration_pct, y=gdp_real_growth_rate_pct)) +
+  geom_point() 
+```
+
+```{r}
+ggplot(data = study_df, aes(x=internet_penetration_pct, y=gdp_per_capita, color = internet_hosts/population)) +
+  geom_point() +
+  scale_color_gradient(name='Internet Hosts Per Capita', low='red', high='blue') +
+  labs(title = 'Distribution of GDP Per Capita to Internet Penetration',
+       x = 'Percent Internet Penetration',
+       y= 'GDP Per Capita in USD x1000') +
+   scale_y_continuous(labels = function(x) x / 1000, breaks = scales::pretty_breaks(n = 5)) +
+   theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+# really strong correlation here
+cor(study_df$internet_penetration_pct, study_df$gdp_per_capita)
+```
+
+```{r}
+model <- lm(study_df$internet_penetration_pct ~ study_df$gdp_per_capita)
+model
+```
+
+```{r}
+summary(model)
+```
+
+#### Conclusions to Study 2:
+
+The original $Ho$ and $Ha$ conclusions of the study were immediately apparent with the first scatterplot. The null hypothesis cannot be rejected and there's no significant relationship between Internet Penetration Percent and GDP Growth Rates. Often, frontier market countries post very high GDP Growth Rates but these growth rates are off of extremely low absolute GDP numbers and are highly variable even within one country year-to-year due to political risk and external factors. Thus the reason for this lack of relationship is logical.
+
+Therefore, I quickly swapped out GDP Growth Rate for GDP per Capita as a more stable measure. This relationship proves out even more strongly than Transport Density. The correlation between the two parameters is 0.90 with a p-value that is minuscule and a huge F-Statistic and R-squared. Therefore, the hull hypothesis can be soundly rejected as there is a definite relationship between GDP per Capita and Internet Penetration.
+
+My philosophical issue with this study is that Internet Penetration may be less a **driver** of GDP than a **measure** of wealth on par with number of bathrooms per house, number of cars in household, median age of cars in household, etc. The GDP formula is:
+
+$GDP = Government Investment + Personal Consumer Expenditure + (Exports - Imports)$
+
+On this level, the internet penetration is contained in PCE.
+
+Nevertheless, a country's GDP exists under another curve called aggregate supply which is measured as
+
+$AS = Labor(L) + Capital(K) + Total Factors of Productivity (TFP)$
+
+Provided that the bulk of the internet usage is not to look at cat videos but instead to build knowledge, then this goes to increase TFP - the secret sauce of a country's economic success - that is actually not measured in GDP but the curve residing (usually) above GDP called Aggregate Supply. Declining Aggregate Supply will always force down GDP and a rising Aggregate Supply will always create more space for GDP to increase. The GDP curve cannot remain long above the Aggregate Supply curve and is thus governed by it.
