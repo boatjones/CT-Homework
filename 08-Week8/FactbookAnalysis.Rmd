@@ -223,9 +223,9 @@ Therefore, I quickly swapped out GDP Growth Rate for GDP per Capita as a more st
 
 My philosophical issue with this study is that Internet Penetration may be less a **driver** of GDP than a **measure** of wealth on par with number of bathrooms per house, number of cars in household, median age of cars in household, etc. The GDP formula is:
 
-$GDP = Government Investment + Personal Consumer Expenditure + (Exports - Imports)$
+$GDP = Government Expenditures + Commercial Investment + Personal Consumer Expenditure + (Exports - Imports)$
 
-On this level, the internet penetration is contained in PCE.
+On this level, the internet penetration is contained in PCE and commercial investment.
 
 Nevertheless, a country's GDP exists under another curve called aggregate supply which is measured as
 
